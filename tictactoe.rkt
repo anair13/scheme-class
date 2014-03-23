@@ -17,8 +17,7 @@
             '(())
             (append (combinations (cdr elements) (- x 1) n) ; without first element
                     (map (lambda (l) (append (list (car elements)) l)) ; with first element
-                         (combinations (cdr elements) (- x 1) (- n 1))
-                    )))))
+                         (combinations (cdr elements) (- x 1) (- n 1)))))))
   (combinations elements (length elements) n))
 
 (define (sum elements)
@@ -40,17 +39,46 @@
 (define (human-player me them)
   (read))
 
+(define (counter)
+  (define x 0)
+  (lambda () (set! x (+ x 1)) x))
+
+(define c1 (counter))
+(define c2 (counter))
 ; you and them are lists of moves
 ; minimax search for best move
-; (score move)
-(define (best-move you them)
+; returns (score move)
+(define (best-move-1 you them)
+  (c1)
   (if (win? them) (list -1 0)
       (if (= (length (valid-moves you them)) 0) (list 0 0) ;draw
           (argmax car 
-                  (map (lambda (m) (list (- (car (best-move them (cons m you)))) m)) 
+                  (map (lambda (m) (list (- (car (best-move-1 them (cons m you)))) m)) 
                        (valid-moves you them))))))
+
+; minimax with alpha-beta pruning
+; returns (score move)
+(define (best-move-2 you them)
+  ; returns (alpha beta move)
+  (define (best-move-pruned you them alpha beta)
+    (c2)
+    (if (win? them) (list -1 1 0)
+        (let ((moves (valid-moves you them)))
+          (if (= (length moves) 0) (list 0 2 0)
+              (foldl (lambda (m c) ; c: (alpha, beta, m)
+                       (if (>= (car c) (cadr c)) c
+                           (let ((move (best-move-pruned them (cons m you) (car c) (cadr c))))
+                             (if (> (- (car move)) (car c))
+                                 (list (- (car move)) (cadr move) m)
+                                 c)
+                             )))
+                     (list alpha beta 0)
+                     moves)))))
+  (let ((m (best-move-pruned you them -2 2)))
+    (list (car m) (caddr m))))
+
 (define (machine-player me them)
-  (let ((m (best-move me them)))
+  (let ((m (best-move-2 me them)))
     (display (cadr m)) (newline)
     (cadr m)))
 
@@ -80,7 +108,12 @@
               (game player1 moves1 player2 moves2 turn))))) ; invalid move, redo
   (game player1 '() player2 '() 1))
 
-; run the game
+;(best-move-1 '() '())
+;(c1)
+;(best-move-2 '() '())
+;(c2) ; shows that best-move-2 prunes
+
+;run the game
 (let ((result (game human-player machine-player))) 
   (cond ((= result 0) (display "Draw!"))
     ((= result 1) (display "Player 1 Wins!"))
